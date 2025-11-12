@@ -28,12 +28,11 @@ async function validarDocumento() {
         path: path.join(downloadsPath, file),
         time: fs.statSync(path.join(downloadsPath, file)).mtime.getTime()
       }))
-      .filter(file => fs.statSync(file.path).isFile()) // Apenas arquivos, não pastas
-      .sort((a, b) => b.time - a.time); // Ordenar por data (mais recente primeiro)
+      .filter(file => fs.statSync(file.path).isFile())
+      .sort((a, b) => b.time - a.time);
     
     console.log(`Total de arquivos encontrados: ${files.length}`);
     
-    // Pegar os 2 arquivos mais recentes
     const recentFiles = files.slice(0, 10);
     
     console.log('10 arquivos mais recentes:');
@@ -46,7 +45,6 @@ async function validarDocumento() {
       throw new Error('Não foram encontrados 2 arquivos na pasta Downloads');
     }
     
-    // Identificar qual é PDF e qual é ZIP nos 2 mais recentes
     const twoMostRecent = recentFiles.slice(0, 2);
     
     for (const file of twoMostRecent) {
@@ -60,7 +58,6 @@ async function validarDocumento() {
       }
     }
     
-    // Verificar se encontrou ambos os arquivos
     if (!caminhoArquivo) {
       throw new Error('Nenhum arquivo PDF encontrado entre os 2 arquivos mais recentes');
     }
@@ -84,7 +81,6 @@ async function validarDocumento() {
       console.log(`  - ${entry.entryName}`);
     });
     
-    // Procura o arquivo .p7s dentro do ZIP
     const p7sEntry = zipEntries.find(entry => 
       entry.entryName.toLowerCase().endsWith('.p7s')
     );
@@ -95,7 +91,6 @@ async function validarDocumento() {
     
     console.log(`✓ Arquivo P7S encontrado: ${p7sEntry.entryName}`);
     
-    // Extrai no diretório temporário
     const nomeArquivoP7S = path.basename(p7sEntry.entryName);
     caminhoAssinatura = path.join(os.tmpdir(), nomeArquivoP7S);
     console.log(`Extraindo para: ${caminhoAssinatura}`);
@@ -110,17 +105,15 @@ async function validarDocumento() {
     console.log('PARTE 3: Iniciando automação');
     console.log('========================================');
     
-    // Lança o navegador visível (não headless) usando Chrome do sistema
     let launchOptions = {
-      headless: false, // Mostra o navegador
+      headless: false,
       args: [
         '--start-maximized',
-        '--disable-blink-features=AutomationControlled' // Esconde que é bot
+        '--disable-blink-features=AutomationControlled'
       ],
-      defaultViewport: null // Usa o tamanho da janela
+      defaultViewport: null
     };
     
-    // Tenta ler a configuração do Chrome do sistema
     try {
       const configPath = path.join(__dirname, 'chrome-config.json');
       if (fs.existsSync(configPath)) {
@@ -144,20 +137,32 @@ async function validarDocumento() {
       }
     }
 
+    // ========================================
+    // MONITORA O FECHAMENTO DO NAVEGADOR
+    // ========================================
+    browser.on('disconnected', () => {
+      console.log('========================================');
+      console.log('⚠️  Navegador foi fechado pelo usuário!');
+      console.log('Encerrando executável...');
+      console.log('========================================');
+      
+      // Encerra o processo imediatamente
+      process.exit(0);
+    });
+
     const pages = await browser.pages();
-    const page = pages[0]; // Usa a primeira aba ao invés de criar nova
+    const page = pages[0];
 
     console.log('Navegando para o site...');
     await page.goto('https://validar.iti.gov.br/', {
       waitUntil: 'networkidle2'
     });
 
-        // Verifica se existe o botão de cookies e clica
+    // Verifica se existe o botão de cookies e clica
     console.log('Verificando botão de cookies...');
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Aguarda 1 segundo
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     try {
-      // Tenta vários seletores diferentes
       const cookieButton = await page.$('button[onclick="cookiebutton()"]') 
         || await page.$('button.deny.grabt')
         || await page.$('button:has-text("Aceitar cookies")');
@@ -169,7 +174,6 @@ async function validarDocumento() {
         console.log('✓ Cookies aceitos!');
       } else {
         console.log('Botão de cookies não encontrado');
-        // Tenta com evaluate como alternativa
         const clicked = await page.evaluate(() => {
           const buttons = Array.from(document.querySelectorAll('button'));
           const cookieBtn = buttons.find(btn => 
@@ -201,17 +205,14 @@ async function validarDocumento() {
     await inputFile.uploadFile(caminhoArquivo);
     console.log('✓ Upload do PDF concluído!');
     
-    // Aguarda um pouco para o arquivo ser processado
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     console.log('Clicando em Assinatura Destacada...');
     await page.click('#detached');
 
-    // Aguarda o popup/modal aparecer e clica em confirmar
     console.log('Aguardando popup...');
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Espera 1 segundo
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Clica no botão Confirmar do popup
     console.log('Clicando em Confirmar...');
     await page.click('#confirmButton');
 
@@ -224,7 +225,6 @@ async function validarDocumento() {
     await inputFileDetached.uploadFile(caminhoAssinatura);
     console.log('✓ Upload do P7S concluído!');
     
-    // Aguarda um pouco para o arquivo ser processado
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     console.log('Aceitando termos de uso...');
@@ -233,65 +233,37 @@ async function validarDocumento() {
     console.log('Clicando em Validar...');
     await page.click('#validateSignature');
 
-    // Aguarda o resultado aparecer (ajuste o seletor conforme necessário)
     console.log('Aguardando resultado...');
     await page.waitForNavigation({ 
       waitUntil: 'networkidle2',
-      timeout: 60000 // 60 segundos
+      timeout: 60000
     }).catch(() => {
       console.log('Aguardando elementos de resultado na mesma página...');
     });
 
-    // Aguarda mais tempo para garantir que a página carregou completamente
     console.log('Aguardando página carregar completamente...');
-    await new Promise(resolve => setTimeout(resolve, 5000)); // 5 segundos
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     console.log('========================================');
-    console.log('Processo concluído! Resultados exibidos no navegador.');
-    console.log('O navegador e executável serão fechados automaticamente em 5 minutos.');
+    console.log('✓ Processo concluído!');
+    console.log('Você pode visualizar o resultado no navegador.');
+    console.log('');
+    console.log('💡 O executável será encerrado automaticamente quando você');
+    console.log('   fechar o navegador.');
     console.log('========================================');
 
-    // Contador regressivo de 5 minutos
-    let countdown = 300; // 5 minutos em segundos
-    
-    console.log(`⏱️  Fechamento automático em ${Math.floor(countdown/60)}:${(countdown%60).toString().padStart(2, '0')}`);
-    
-    const timer = setInterval(() => {
-      countdown -= 10; // Atualiza a cada 10 segundos
-      
-      if (countdown > 0) {
-        console.log(`⏱️  Fechamento automático em ${Math.floor(countdown/60)}:${(countdown%60).toString().padStart(2, '0')}`);
-      } else {
-        clearInterval(timer);
-        
-        console.log('========================================');
-        console.log('⏰ Tempo esgotado! Fechando navegador e executável...');
-        console.log('========================================');
-        
-        // Fecha o navegador e encerra o processo
-        setTimeout(async () => {
-          try {
-            await browser.close();
-            console.log('✓ Navegador fechado!');
-          } catch (e) {
-            console.log('Aviso ao fechar navegador:', e.message);
-          }
-          
-          console.log('✓ Encerrando processo Electron...');
-          process.exit(0);
-        }, 2000); // 2 segundos para fechar tudo
-      }
-    }, 10000); // Atualiza a cada 10 segundos
+    // REMOVE TODO O CÓDIGO DO TIMER/COUNTDOWN
+    // Agora só aguarda o usuário fechar o navegador
+    // O evento 'disconnected' vai capturar isso
 
   } catch (error) {
     console.error('========================================');
     console.error('ERRO durante a automação:', error.message);
     console.error('========================================');
     console.error('Stack completo:', error);
-    console.error('Navegador e executável serão fechados em 30 segundos.');
+    console.error('Encerrando em 30 segundos...');
     console.error('========================================');
     
-    // Em caso de erro, fecha tudo em 30 segundos
     setTimeout(async () => {
       console.log('⚠️  Fechando por erro...');
       if (browser) {
@@ -303,9 +275,8 @@ async function validarDocumento() {
         }
       }
       process.exit(1);
-    }, 30000); // 30 segundos
+    }, 30000);
   }
 }
 
-// Exporta a função para ser usada em outro arquivo
 module.exports = { validarDocumento };

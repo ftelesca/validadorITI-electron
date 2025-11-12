@@ -1,45 +1,61 @@
 {
-  "name": "validador-electron",
-  "version": "1.0.0",
-  "description": "Validador de documentos ITI",
+  "name": "validadorITI-electron",
+  "version": "1.0.2",
+  "description": "Validador de assinatura digital no ITI",
+  "author": "Fernando Telesca",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "check-chrome": "node install-puppeteer-chrome.js",
-    "prebuild": "npm run check-chrome",
-    "build": "electron-builder --win --x64",
-    "build-dir": "electron-builder --win --x64 --dir",
-    "pack": "electron-packager . ValidadorITI --platform=win32 --arch=x64 --out=dist --overwrite"
+    "build": "electron-builder --win",
+    "clean": "rimraf dist"
   },
   "build": {
-    "appId": "com.validador.iti",
-    "productName": "Validador ITI",
-    "directories": {
-      "output": "dist"
+    "appId": "com.telesca.validadorITI",
+    "productName": "ValidadorITI",
+    "protocols": {
+      "name": "validardoc",
+      "schemes": [
+        "validardoc"
+      ]
     },
-    "asar": true,
-    "compression": "maximum",
-    "files": [
-      "**/*",
-      "node_modules/**/*",
-      "!node_modules/.cache/**/*"
-    ],
     "win": {
-      "target": "portable",
-      "icon": "icon.ico",
-      "forceCodeSigning": false
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "perMachine": true,
+      "runAfterFinish": false,
+      "include": "build/installer.nsh"
+    },
+    "files": [
+      "main.js",
+      "validador.js",
+      "chrome-config.json",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
     }
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "adm-zip": "^0.5.10",
     "puppeteer": "^21.0.0"
   },
   "devDependencies": {
     "electron": "^28.0.0",
-    "electron-builder": "^24.0.0",
-    "electron-packager": "^17.1.2"
+    "electron-builder": "^24.13.3"
   }
 }
