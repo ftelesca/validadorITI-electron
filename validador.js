@@ -224,7 +224,7 @@ async function validarDocumento() {
 
     console.log('========================================');
     console.log('Processo concluído! Resultados exibidos no navegador.');
-    console.log('O navegador e executável serão fechados automaticamente em 2 minutos.');
+    console.log('O navegador e executável serão fechados automaticamente em 5 minutos.');
     console.log('========================================');
 
     // Contador regressivo de 5 minutos
