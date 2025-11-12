@@ -8,7 +8,7 @@ Aplicação desktop para automação da validação de documentos digitais no si
 - **Extração automática** do arquivo P7S do ZIP para diretório temporário
 - **Automação completa** do processo de validação no site validar.iti.gov.br
 - **Interface visual** usando Chromium
-- **Timer de 2 minutos** para visualização dos resultados
+- **Timer de 5 minutos** para visualização dos resultados
 - **Fechamento automático** após exibição dos resultados
 
 ## 📋 Pré-requisitos
