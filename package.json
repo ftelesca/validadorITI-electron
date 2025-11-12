@@ -1,0 +1,38 @@
+{
+  "name": "validador-electron",
+  "version": "1.0.0",
+  "description": "Validador de documentos ITI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "build-dir": "electron-builder --win --x64 --dir",
+    "pack": "electron-packager . ValidadorITI --platform=win32 --arch=x64 --out=dist --overwrite"
+  },
+  "build": {
+    "appId": "com.validador.iti",
+    "productName": "Validador ITI",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "compression": "maximum",
+    "win": {
+      "target": "portable",
+      "icon": "icon.ico",
+      "forceCodeSigning": false
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "puppeteer": "^21.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0",
+    "electron-packager": "^17.1.2"
+  }
+}
