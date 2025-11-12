@@ -111,14 +111,39 @@ async function validarDocumento() {
     console.log('========================================');
     
     // Lança o navegador visível (não headless) - VOLTANDO AO CHROMIUM
-    browser = await puppeteer.launch({
-      headless: false, // Mostra o navegador
-      args: [
-        '--start-maximized',
-        '--disable-blink-features=AutomationControlled' // Esconde que é bot
-      ],
-      defaultViewport: null // Usa o tamanho da janela
-    });
+    try {
+      browser = await puppeteer.launch({
+        headless: false, // Mostra o navegador
+        args: [
+          '--start-maximized',
+          '--disable-blink-features=AutomationControlled' // Esconde que é bot
+        ],
+        defaultViewport: null // Usa o tamanho da janela
+      });
+    } catch (launchError) {
+      if (launchError.message.includes('Could not find Chrome')) {
+        console.log('Chrome não encontrado. Tentando instalar...');
+        const { execSync } = require('child_process');
+        
+        try {
+          execSync('npx puppeteer browsers install chrome', { stdio: 'inherit' });
+          console.log('Chrome instalado! Tentando novamente...');
+          
+          browser = await puppeteer.launch({
+            headless: false,
+            args: [
+              '--start-maximized',
+              '--disable-blink-features=AutomationControlled'
+            ],
+            defaultViewport: null
+          });
+        } catch (installError) {
+          throw new Error(`Não foi possível instalar ou executar o Chrome: ${installError.message}`);
+        }
+      } else {
+        throw launchError;
+      }
+    }
 
     const pages = await browser.pages();
     const page = pages[0]; // Usa a primeira aba ao invés de criar nova
