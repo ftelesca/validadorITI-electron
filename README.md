@@ -23,7 +23,7 @@ Aplicação desktop para automação da validação de documentos digitais no si
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/validador-electron.git
+git clone https://github.com/ftelesca/validador-electron.git
 cd validador-electron
 ```
 
@@ -85,4 +85,4 @@ MIT License
 
 ## 📞 Suporte
 
-Para problemas ou sugestões, abra uma [issue](https://github.com/seu-usuario/validador-electron/issues).
+Para problemas ou sugestões, abra uma [issue](https://github.com/ftelesca/validador-electron/issues).
