@@ -5,6 +5,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Chrome configuration (machine-specific)
+chrome-config.json
+
 # Runtime data
 pids
 *.pid

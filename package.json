@@ -5,8 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "install-chrome": "node install-puppeteer-chrome.js",
-    "prebuild": "npm run install-chrome",
+    "check-chrome": "node install-puppeteer-chrome.js",
+    "prebuild": "npm run check-chrome",
     "build": "electron-builder --win --x64",
     "build-dir": "electron-builder --win --x64 --dir",
     "pack": "electron-packager . ValidadorITI --platform=win32 --arch=x64 --out=dist --overwrite"
@@ -17,13 +17,12 @@
     "directories": {
       "output": "dist"
     },
-    "asar": false,
+    "asar": true,
     "compression": "maximum",
     "files": [
       "**/*",
       "node_modules/**/*",
-      "!node_modules/.cache/puppeteer/**/*",
-      "node_modules/.cache/puppeteer/**/*"
+      "!node_modules/.cache/**/*"
     ],
     "win": {
       "target": "portable",
@@ -36,8 +35,7 @@
   "license": "ISC",
   "dependencies": {
     "adm-zip": "^0.5.10",
-    "puppeteer": "^21.0.0",
-    "@puppeteer/browsers": "^1.9.0"
+    "puppeteer": "^21.0.0"
   },
   "devDependencies": {
     "electron": "^28.0.0",

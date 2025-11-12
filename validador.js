@@ -110,36 +110,35 @@ async function validarDocumento() {
     console.log('PARTE 3: Iniciando automação');
     console.log('========================================');
     
-    // Lança o navegador visível (não headless) - VOLTANDO AO CHROMIUM
+    // Lança o navegador visível (não headless) usando Chrome do sistema
+    let launchOptions = {
+      headless: false, // Mostra o navegador
+      args: [
+        '--start-maximized',
+        '--disable-blink-features=AutomationControlled' // Esconde que é bot
+      ],
+      defaultViewport: null // Usa o tamanho da janela
+    };
+    
+    // Tenta ler a configuração do Chrome do sistema
     try {
-      browser = await puppeteer.launch({
-        headless: false, // Mostra o navegador
-        args: [
-          '--start-maximized',
-          '--disable-blink-features=AutomationControlled' // Esconde que é bot
-        ],
-        defaultViewport: null // Usa o tamanho da janela
-      });
+      const configPath = path.join(__dirname, 'chrome-config.json');
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        if (config.chromeFound && config.chromePath) {
+          launchOptions.executablePath = config.chromePath;
+          console.log(`Usando Chrome do sistema: ${config.chromePath}`);
+        }
+      }
+    } catch (configError) {
+      console.log('Não foi possível ler configuração do Chrome, usando padrão...');
+    }
+    
+    try {
+      browser = await puppeteer.launch(launchOptions);
     } catch (launchError) {
       if (launchError.message.includes('Could not find Chrome')) {
-        console.log('Chrome não encontrado. Tentando instalar...');
-        const { execSync } = require('child_process');
-        
-        try {
-          execSync('npx puppeteer browsers install chrome', { stdio: 'inherit' });
-          console.log('Chrome instalado! Tentando novamente...');
-          
-          browser = await puppeteer.launch({
-            headless: false,
-            args: [
-              '--start-maximized',
-              '--disable-blink-features=AutomationControlled'
-            ],
-            defaultViewport: null
-          });
-        } catch (installError) {
-          throw new Error(`Não foi possível instalar ou executar o Chrome: ${installError.message}`);
-        }
+        throw new Error(`Chrome não encontrado no sistema. Por favor, instale o Google Chrome em: https://www.google.com/chrome/\n\nErro original: ${launchError.message}`);
       } else {
         throw launchError;
       }

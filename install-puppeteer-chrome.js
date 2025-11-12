@@ -1,63 +1,65 @@
-const { execSync } = require('child_process');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 const os = require('os');
 
-console.log('Checking Chrome for Testing installation...');
+console.log('Checking for system Chrome installation...');
 
-function checkChromeInstallation() {
-  try {
-    // Check if Chrome for Testing is already installed
-    const cacheDir = path.join(os.homedir(), '.cache', 'puppeteer');
-    const chromeDirs = fs.existsSync(cacheDir) ? 
-      fs.readdirSync(cacheDir).filter(dir => dir.startsWith('chrome')) : [];
-    
-    if (chromeDirs.length > 0) {
-      console.log(`✓ Chrome for Testing already installed: ${chromeDirs.join(', ')}`);
-      return true;
-    }
-    
-    // Alternative check for @puppeteer/browsers cache
-    const browsersCache = path.join(os.homedir(), '.cache', 'puppeteer', 'chrome');
-    if (fs.existsSync(browsersCache)) {
-      console.log('✓ Chrome for Testing found in browsers cache');
-      return true;
-    }
-    
-    return false;
-  } catch (error) {
-    console.log('Could not check existing installation, proceeding with install...');
-    return false;
+function findSystemChrome() {
+  const possiblePaths = [];
+  
+  if (os.platform() === 'win32') {
+    // Windows Chrome paths
+    possiblePaths.push(
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      path.join(os.homedir(), 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe')
+    );
+  } else if (os.platform() === 'darwin') {
+    // macOS Chrome paths
+    possiblePaths.push(
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    );
+  } else {
+    // Linux Chrome paths
+    possiblePaths.push(
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium-browser',
+      '/snap/bin/chromium'
+    );
   }
+  
+  for (const chromePath of possiblePaths) {
+    if (fs.existsSync(chromePath)) {
+      console.log(`✓ Found Chrome at: ${chromePath}`);
+      return chromePath;
+    }
+  }
+  
+  return null;
 }
 
-if (checkChromeInstallation()) {
-  console.log('Chrome for Testing is already available, skipping installation.');
-  process.exit(0);
-}
+const chromePath = findSystemChrome();
 
-console.log('Installing Chrome for Testing...');
-
-try {
-  // Install Chrome for Testing (not standard Chrome)
-  execSync('npx @puppeteer/browsers install chrome@stable', {
-    stdio: 'inherit',
-    cwd: __dirname
-  });
+if (chromePath) {
+  console.log('✓ System Chrome found and ready to use!');
   
-  console.log('✓ Chrome for Testing installed successfully!');
-} catch (error) {
-  console.error('Error installing Chrome for Testing:', error.message);
-  console.log('Falling back to puppeteer browsers install...');
+  // Create a config file that the app can read
+  const config = {
+    chromePath: chromePath,
+    chromeFound: true
+  };
   
-  try {
-    execSync('npx puppeteer browsers install chrome', {
-      stdio: 'inherit',
-      cwd: __dirname
-    });
-    console.log('✓ Puppeteer Chrome installed successfully!');
-  } catch (fallbackError) {
-    console.error('Fallback also failed:', fallbackError.message);
-    process.exit(1);
-  }
+  fs.writeFileSync(path.join(__dirname, 'chrome-config.json'), JSON.stringify(config, null, 2));
+  console.log('Chrome configuration saved.');
+} else {
+  console.log('⚠ Chrome not found on system. The application may not work properly.');
+  console.log('Please install Google Chrome from: https://www.google.com/chrome/');
+  
+  const config = {
+    chromePath: null,
+    chromeFound: false
+  };
+  
+  fs.writeFileSync(path.join(__dirname, 'chrome-config.json'), JSON.stringify(config, null, 2));
 }
