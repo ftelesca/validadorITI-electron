@@ -227,8 +227,8 @@ async function validarDocumento() {
     console.log('O navegador e executável serão fechados automaticamente em 2 minutos.');
     console.log('========================================');
 
-    // Contador regressivo de 2 minutos
-    let countdown = 120; // 2 minutos em segundos
+    // Contador regressivo de 5 minutos
+    let countdown = 300; // 5 minutos em segundos
     
     console.log(`⏱️  Fechamento automático em ${Math.floor(countdown/60)}:${(countdown%60).toString().padStart(2, '0')}`);
     
