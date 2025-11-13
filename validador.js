@@ -4,6 +4,36 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+// Função para encontrar Chrome instalado no sistema
+function findChrome() {
+  const possiblePaths = [
+    // Chrome padrão
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    path.join(process.env.LOCALAPPDATA, 'Google\\Chrome\\Application\\chrome.exe'),
+    path.join(process.env.PROGRAMFILES, 'Google\\Chrome\\Application\\chrome.exe'),
+    path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Google\\Chrome\\Application\\chrome.exe'),
+    
+    // Edge (fallback - também funciona com Puppeteer)
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    path.join(process.env.PROGRAMFILES, 'Microsoft\\Edge\\Application\\msedge.exe'),
+    
+    // Brave (fallback)
+    path.join(process.env.LOCALAPPDATA, 'BraveSoftware\\Brave-Browser\\Application\\brave.exe'),
+    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'
+  ];
+  
+  for (const chromePath of possiblePaths) {
+    if (fs.existsSync(chromePath)) {
+      console.log(`✓ Navegador encontrado: ${chromePath}`);
+      return chromePath;
+    }
+  }
+  
+  return null;
+}
+
 async function validarDocumento() {
   let browser;
   let caminhoAssinatura = null;
@@ -21,7 +51,6 @@ async function validarDocumento() {
     const downloadsPath = path.join(os.homedir(), 'Downloads');
     console.log(`Pasta Downloads: ${downloadsPath}`);
     
-    // Listar todos os arquivos na pasta Downloads
     const files = fs.readdirSync(downloadsPath)
       .map(file => ({
         name: file,
@@ -105,8 +134,20 @@ async function validarDocumento() {
     console.log('PARTE 3: Iniciando automação');
     console.log('========================================');
     
+    // Procura Chrome instalado no sistema
+    const chromePath = findChrome();
+    
+    if (!chromePath) {
+      throw new Error('Nenhum navegador compatível encontrado!\n\n' +
+        'Por favor, instale um dos seguintes navegadores:\n' +
+        '  • Google Chrome: https://www.google.com/chrome/\n' +
+        '  • Microsoft Edge (já vem com Windows 10/11)\n\n' +
+        'Após instalar, execute o validador novamente.');
+    }
+    
     let launchOptions = {
       headless: false,
+      executablePath: chromePath,
       args: [
         '--start-maximized',
         '--disable-blink-features=AutomationControlled'
@@ -114,27 +155,13 @@ async function validarDocumento() {
       defaultViewport: null
     };
     
-    try {
-      const configPath = path.join(__dirname, 'chrome-config.json');
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        if (config.chromeFound && config.chromePath) {
-          launchOptions.executablePath = config.chromePath;
-          console.log(`Usando Chrome do sistema: ${config.chromePath}`);
-        }
-      }
-    } catch (configError) {
-      console.log('Não foi possível ler configuração do Chrome, usando padrão...');
-    }
+    console.log(`Iniciando navegador: ${chromePath}`);
     
     try {
       browser = await puppeteer.launch(launchOptions);
     } catch (launchError) {
-      if (launchError.message.includes('Could not find Chrome')) {
-        throw new Error(`Chrome não encontrado no sistema. Por favor, instale o Google Chrome em: https://www.google.com/chrome/\n\nErro original: ${launchError.message}`);
-      } else {
-        throw launchError;
-      }
+      throw new Error(`Erro ao iniciar o navegador: ${launchError.message}\n\n` +
+        'Tente reinstalar o Google Chrome ou Microsoft Edge.');
     }
 
     // ========================================
@@ -146,7 +173,6 @@ async function validarDocumento() {
       console.log('Encerrando executável...');
       console.log('========================================');
       
-      // Encerra o processo imediatamente
       process.exit(0);
     });
 
@@ -158,7 +184,6 @@ async function validarDocumento() {
       waitUntil: 'networkidle2'
     });
 
-    // Verifica se existe o botão de cookies e clica
     console.log('Verificando botão de cookies...');
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -188,8 +213,6 @@ async function validarDocumento() {
         });
         if (clicked) {
           console.log('✓ Cookies aceitos via evaluate!');
-        } else {
-          console.log('Botão de cookies realmente não existe');
         }
       }
     } catch (error) {
@@ -251,10 +274,6 @@ async function validarDocumento() {
     console.log('💡 O executável será encerrado automaticamente quando você');
     console.log('   fechar o navegador.');
     console.log('========================================');
-
-    // REMOVE TODO O CÓDIGO DO TIMER/COUNTDOWN
-    // Agora só aguarda o usuário fechar o navegador
-    // O evento 'disconnected' vai capturar isso
 
   } catch (error) {
     console.error('========================================');
