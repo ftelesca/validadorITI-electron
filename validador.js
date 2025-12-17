@@ -7,26 +7,48 @@ const os = require('os');
 
 const callbackUrl = 'https://sbis.iscinternal.com/trakcare/csp/d4sign.callback.csp';
 
-function parseDocumentIdFromArg(arg) {
-  try {
-    if (!arg) return '';
-    const url = new URL(arg);
-    return url.searchParams.get('documentId') || '';
-  } catch {
-    return '';
+function parseDocumentIdFromArgs(argv = process.argv) {
+  const protoArg = argv.find((a) => typeof a === 'string' && a.startsWith('validardoc://'));
+  if (protoArg) {
+    try {
+      const url = new URL(protoArg);
+      const id = url.searchParams.get('documentId');
+      if (id) return id;
+    } catch (e) {
+      console.warn('Falha ao parsear URL do protocolo:', e);
+    }
   }
+
+  const kvArg = argv.find((a) => typeof a === 'string' && a.includes('documentId='));
+  if (kvArg) {
+    const m = kvArg.match(/documentId=([^&\s]+)/i);
+    if (m && m[1]) return m[1];
+  }
+  return '';
 }
 
 function sendCallback(documentId, resultMessage) {
   return new Promise((resolve) => {
-    const url = `${callbackUrl}?documentId=${encodeURIComponent(documentId || '')}&resultMessage=${encodeURIComponent(resultMessage || '')}`;
-    https.get(url, (res) => {
+    const qs = `documentId=${encodeURIComponent(documentId || '')}&resultMessage=${encodeURIComponent(resultMessage || '')}`;
+    const url = new URL(`${callbackUrl}?${qs}`);
+    const options = {
+      method: 'GET',
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      port: 443,
+    };
+
+    const req = https.request(options, (res) => {
       res.on('data', () => {});
       res.on('end', () => resolve());
-    }).on('error', (err) => {
+    });
+
+    req.on('error', (err) => {
       console.error('Falha ao enviar callback:', err.message);
       resolve();
     });
+
+    req.end();
   });
 }
 
@@ -66,7 +88,9 @@ async function validarDocumento() {
   let caminhoArquivo;
   let caminhoZipAssinatura;
   let resultMessage = 'Erro na verificação';
-  const documentId = parseDocumentIdFromArg(process.argv[2]);
+  const documentId = parseDocumentIdFromArgs();
+
+  console.log('documentId recebido:', documentId || '(vazio)');
   
   try {
     // ========================================
