@@ -1,8 +1,34 @@
 const puppeteer = require('puppeteer');
 const AdmZip = require('adm-zip');
+const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+
+const callbackUrl = 'https://sbis.iscinternal.com/trakcare/csp/d4sign.callback.csp';
+
+function parseDocumentIdFromArg(arg) {
+  try {
+    if (!arg) return '';
+    const url = new URL(arg);
+    return url.searchParams.get('documentId') || '';
+  } catch {
+    return '';
+  }
+}
+
+function sendCallback(documentId, resultMessage) {
+  return new Promise((resolve) => {
+    const url = `${callbackUrl}?documentId=${encodeURIComponent(documentId || '')}&resultMessage=${encodeURIComponent(resultMessage || '')}`;
+    https.get(url, (res) => {
+      res.on('data', () => {});
+      res.on('end', () => resolve());
+    }).on('error', (err) => {
+      console.error('Falha ao enviar callback:', err.message);
+      resolve();
+    });
+  });
+}
 
 // Função para encontrar Chrome instalado no sistema
 function findChrome() {
@@ -39,6 +65,8 @@ async function validarDocumento() {
   let caminhoAssinatura = null;
   let caminhoArquivo;
   let caminhoZipAssinatura;
+  let resultMessage = 'Erro na verificação';
+  const documentId = parseDocumentIdFromArg(process.argv[2]);
   
   try {
     // ========================================
@@ -267,13 +295,22 @@ async function validarDocumento() {
     console.log('Aguardando página carregar completamente...');
     await new Promise(resolve => setTimeout(resolve, 5000));
 
+    resultMessage = await page.evaluate(() => {
+      const bodyText = document.body.innerText || '';
+      if (/Assinatura aprovada/i.test(bodyText)) return 'Assinatura aprovada';
+      if (/Assinatura reprovada/i.test(bodyText)) return 'Assinatura reprovada';
+      return 'Erro na verificação';
+    });
+
     console.log('========================================');
+    console.log(`Resultado: ${resultMessage}`);
     console.log('✓ Processo concluído!');
     console.log('Você pode visualizar o resultado no navegador.');
     console.log('');
     console.log('💡 O executável será encerrado automaticamente quando você');
     console.log('   fechar o navegador.');
     console.log('========================================');
+    return resultMessage;
 
   } catch (error) {
     console.error('========================================');
@@ -282,6 +319,7 @@ async function validarDocumento() {
     console.error('Stack completo:', error);
     console.error('Encerrando em 30 segundos...');
     console.error('========================================');
+    resultMessage = 'Erro na verificação';
     
     setTimeout(async () => {
       console.log('⚠️  Fechando por erro...');
@@ -295,6 +333,8 @@ async function validarDocumento() {
       }
       process.exit(1);
     }, 30000);
+  } finally {
+    await sendCallback(documentId, resultMessage);
   }
 }
 
