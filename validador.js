@@ -7,29 +7,48 @@ const os = require('os');
 
 const callbackUrl = 'https://sbis.iscinternal.com/trakcare/csp/d4sign.callback.csp';
 
-function parseDocumentIdFromArgs(argv = process.argv) {
+function parseRowIdFromArgs(argv = process.argv) {
   const protoArg = argv.find((a) => typeof a === 'string' && a.startsWith('validardoc://'));
   if (protoArg) {
     try {
       const url = new URL(protoArg);
-      const id = url.searchParams.get('documentId');
+      const id = url.searchParams.get('rowID');
       if (id) return id;
     } catch (e) {
       console.warn('Falha ao parsear URL do protocolo:', e);
     }
   }
 
-  const kvArg = argv.find((a) => typeof a === 'string' && a.includes('documentId='));
+  const kvArg = argv.find((a) => typeof a === 'string' && a.includes('rowID='));
   if (kvArg) {
-    const m = kvArg.match(/documentId=([^&\s]+)/i);
+    const m = kvArg.match(/rowID=([^&\s]+)/i);
     if (m && m[1]) return m[1];
   }
   return '';
 }
 
-function sendCallback(documentId, resultMessage) {
+function parseHeadlessFromArgs(argv = process.argv) {
+  const protoArg = argv.find((a) => typeof a === 'string' && a.startsWith('validardoc://'));
+  if (protoArg) {
+    try {
+      const url = new URL(protoArg);
+      const flag = url.searchParams.get('headless');
+      if (typeof flag === 'string') return flag.toLowerCase() === 'true';
+    } catch (e) {
+      console.warn('Falha ao parsear headless do protocolo:', e);
+    }
+  }
+  const kvArg = argv.find((a) => typeof a === 'string' && a.includes('headless='));
+  if (kvArg) {
+    const m = kvArg.match(/headless=([^&\s]+)/i);
+    if (m && m[1]) return m[1].toLowerCase() === 'true';
+  }
+  return false;
+}
+
+function sendCallback(rowID, resultMessage) {
   return new Promise((resolve) => {
-    const qs = `documentId=${encodeURIComponent(documentId || '')}&resultMessage=${encodeURIComponent(resultMessage || '')}`;
+    const qs = `rowID=${encodeURIComponent(rowID || '')}&resultMessage=${encodeURIComponent(resultMessage || '')}`;
     const url = new URL(`${callbackUrl}?${qs}`);
     const options = {
       method: 'GET',
@@ -88,9 +107,11 @@ async function validarDocumento() {
   let caminhoArquivo;
   let caminhoZipAssinatura;
   let resultMessage = 'Erro na verificação';
-  const documentId = parseDocumentIdFromArgs();
+  const rowID = parseRowIdFromArgs();
+  const runHeadless = parseHeadlessFromArgs();
 
-  console.log('documentId recebido:', documentId || '(vazio)');
+  console.log('rowID recebido:', rowID || '(vazio)');
+  console.log('headless:', runHeadless);
   
   try {
     // ========================================
@@ -198,13 +219,12 @@ async function validarDocumento() {
     }
     
     let launchOptions = {
-      headless: false,
+      headless: runHeadless ? 'new' : false,
       executablePath: chromePath,
-      args: [
-        '--start-maximized',
-        '--disable-blink-features=AutomationControlled'
-      ],
-      defaultViewport: null
+      args: runHeadless
+        ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+        : ['--start-maximized', '--disable-blink-features=AutomationControlled'],
+      defaultViewport: runHeadless ? { width: 1280, height: 720 } : null
     };
     
     console.log(`Iniciando navegador: ${chromePath}`);
@@ -358,7 +378,15 @@ async function validarDocumento() {
       process.exit(1);
     }, 30000);
   } finally {
-    await sendCallback(documentId, resultMessage);
+    await sendCallback(rowID, resultMessage);
+    if (runHeadless && browser) {
+      try {
+        await browser.close();
+      } catch (e) {
+        console.error('Erro ao fechar navegador (headless):', e.message);
+      }
+      process.exit(resultMessage === 'Erro na verificação' ? 1 : 0);
+    }
   }
 }
 
