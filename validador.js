@@ -219,7 +219,7 @@ async function validarDocumento() {
     }
     
     let launchOptions = {
-      headless: runHeadless ? 'new' : false,
+      headless: runHeadless,
       executablePath: chromePath,
       args: runHeadless
         ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
