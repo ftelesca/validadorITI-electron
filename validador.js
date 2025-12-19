@@ -83,8 +83,8 @@ async function addFooterToPdf(pdfPath, line1, line2 = '') {
     pages.forEach((page) => {
       const { width } = page.getSize();
       const size = 10;
-      const y1 = 28;
-      const y2 = 14;
+      const y1 = 18;
+      const y2 = 6;
       const x1 = (width - font.widthOfTextAtSize(line1, size)) / 2;
       const x2 = (width - font.widthOfTextAtSize(line2, size)) / 2;
 
