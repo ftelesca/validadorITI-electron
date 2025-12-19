@@ -4,6 +4,8 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { exec } = require('child_process');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 
 const callbackUrl = 'https://sbis.iscinternal.com/trakcare/csp/d4sign.callback.csp';
 
@@ -46,9 +48,9 @@ function parseHeadlessFromArgs(argv = process.argv) {
   return false;
 }
 
-function sendCallback(rowID, resultMessage) {
+function sendCallback(rowID, resultValid) {
   return new Promise((resolve) => {
-    const qs = `rowID=${encodeURIComponent(rowID || '')}&resultMessage=${encodeURIComponent(resultMessage || '')}`;
+    const qs = `rowID=${encodeURIComponent(rowID || '')}&resultValid=${encodeURIComponent(resultValid || '')}`;
     const url = new URL(`${callbackUrl}?${qs}`);
     const options = {
       method: 'GET',
@@ -69,6 +71,58 @@ function sendCallback(rowID, resultMessage) {
 
     req.end();
   });
+}
+
+async function addFooterToPdf(pdfPath, line1, line2 = '') {
+  try {
+    const pdfBytes = fs.readFileSync(pdfPath);
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const pages = pdfDoc.getPages();
+
+    pages.forEach((page) => {
+      const { width } = page.getSize();
+      const size = 10;
+      const y1 = 28;
+      const y2 = 14;
+      const x1 = (width - font.widthOfTextAtSize(line1, size)) / 2;
+      const x2 = (width - font.widthOfTextAtSize(line2, size)) / 2;
+
+      page.drawText(line1, {
+        x: Math.max(16, x1),
+        y: y1,
+        size,
+        font,
+        color: rgb(0, 0, 0),
+      });
+
+      if (line2) {
+        page.drawText(line2, {
+          x: Math.max(16, x2),
+          y: y2,
+          size,
+          font,
+          color: rgb(0, 0, 0),
+        });
+      }
+    });
+
+    const outPath = path.join(
+      os.tmpdir(),
+      `${path.basename(pdfPath, '.pdf')}_assinatura.pdf`
+    );
+    const updatedBytes = await pdfDoc.save();
+    fs.writeFileSync(outPath, updatedBytes);
+    return outPath;
+  } catch (e) {
+    console.error('Falha ao adicionar rodapé:', e);
+    return '';
+  }
+}
+
+function openPdfViewer(pdfPath) {
+  if (!pdfPath) return;
+  exec(`start "" "${pdfPath}"`);
 }
 
 // Função para encontrar Chrome instalado no sistema
@@ -106,7 +160,9 @@ async function validarDocumento() {
   let caminhoAssinatura = null;
   let caminhoArquivo;
   let caminhoZipAssinatura;
-  let resultMessage = 'Erro na verificação';
+  let resultValid = 'Erro';
+  let nomeSignatario = 'Erro';
+  let dataAssinatura = 'Erro';
   const rowID = parseRowIdFromArgs();
   const runHeadless = parseHeadlessFromArgs();
 
@@ -339,22 +395,59 @@ async function validarDocumento() {
     console.log('Aguardando página carregar completamente...');
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    resultMessage = await page.evaluate(() => {
+    const extracted = await page.evaluate(() => {
       const bodyText = document.body.innerText || '';
-      if (/Assinatura aprovada/i.test(bodyText)) return 'Assinatura aprovada';
-      if (/Assinatura reprovada/i.test(bodyText)) return 'Assinatura reprovada';
-      return 'Erro na verificação';
+
+      const nome = (() => {
+        const m = bodyText.match(/Assinado por:\s*(.+)/i);
+        return m?.[1]?.trim() || 'Erro';
+      })();
+
+      const data = (() => {
+        const m = bodyText.match(/Data da assinatura:\s*([^\n\r]+)/i);
+        return m?.[1]?.trim() || 'Erro';
+      })();
+
+      let res = 'Erro';
+      if (/Assinatura aprovada/i.test(bodyText)) res = 'Aprovada';
+      else if (/Assinatura reprovada/i.test(bodyText)) res = 'Reprovada';
+
+      return {
+        nomeSignatario: nome || 'Erro',
+        dataAssinatura: data || 'Erro',
+        resultValid: res,
+      };
     });
 
+    nomeSignatario = extracted.nomeSignatario || 'Erro';
+    dataAssinatura = extracted.dataAssinatura || 'Erro';
+    resultValid = extracted.resultValid || 'Erro';
+
+    await sendCallback(rowID, resultValid);
+
+    const fraseLinha1 = 'Documento assinado digitalmente de acordo com a ICP-Brasil, MP 2.200-2/2001, no sistema certificado SBIS nº XXX-Y,';
+    const fraseLinha2 = `por ${nomeSignatario}, em ${dataAssinatura}. Estado da assinatura: ${resultValid}`;
+    const pdfOriginal = caminhoArquivo;
+    if (pdfOriginal) {
+      const pdfAlterado = await addFooterToPdf(pdfOriginal, fraseLinha1, fraseLinha2);
+      if (pdfAlterado) {
+        openPdfViewer(pdfAlterado);
+      } else {
+        console.warn('Não foi possível gerar PDF com rodapé.');
+      }
+    } else {
+      console.warn('Nenhum PDF encontrado para adicionar rodapé.');
+    }
+
     console.log('========================================');
-    console.log(`Resultado: ${resultMessage}`);
+    console.log(`Resultado: ${resultValid}`);
     console.log('✓ Processo concluído!');
     console.log('Você pode visualizar o resultado no navegador.');
     console.log('');
     console.log('💡 O executável será encerrado automaticamente quando você');
     console.log('   fechar o navegador.');
     console.log('========================================');
-    return resultMessage;
+    return resultValid;
 
   } catch (error) {
     console.error('========================================');
@@ -363,7 +456,8 @@ async function validarDocumento() {
     console.error('Stack completo:', error);
     console.error('Encerrando em 30 segundos...');
     console.error('========================================');
-    resultMessage = 'Erro na verificação';
+    resultValid = 'Erro';
+    await sendCallback(rowID, resultValid);
     
     setTimeout(async () => {
       console.log('⚠️  Fechando por erro...');
@@ -378,14 +472,13 @@ async function validarDocumento() {
       process.exit(1);
     }, 30000);
   } finally {
-    await sendCallback(rowID, resultMessage);
     if (runHeadless && browser) {
       try {
         await browser.close();
       } catch (e) {
         console.error('Erro ao fechar navegador (headless):', e.message);
       }
-      process.exit(resultMessage === 'Erro na verificação' ? 1 : 0);
+      process.exit(resultValid === 'Erro' ? 1 : 0);
     }
   }
 }
